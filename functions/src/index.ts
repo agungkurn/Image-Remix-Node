@@ -97,6 +97,21 @@ export const generateImages = onCall<GenerateImagesRequest>(
           status: aiResponse.status,
           error: errorText,
         });
+
+        if (aiResponse.status === 503) {
+          throw new HttpsError(
+            "unavailable",
+            "AI model is overloaded. Please try again in a moment."
+          );
+        }
+
+        if (aiResponse.status === 429) {
+          throw new HttpsError(
+            "resource-exhausted",
+            "AI quota exceeded. Please try again later."
+          );
+        }
+
         throw new HttpsError(
           "internal",
           "AI generation failed. Please try again."
@@ -142,12 +157,7 @@ export const generateImages = onCall<GenerateImagesRequest>(
               },
             },
           });
-
-          const [signedUrl] = await genFile.getSignedUrl({
-            action: "read",
-            expires: Date.now() + 60 * 60 * 1000, // 1 jam
-          });
-          generatedImages.push(signedUrl);
+          generatedImages.push(genFilePath);
 
           if (generatedImages.length >= count) break;
         }
@@ -171,8 +181,8 @@ export const generateImages = onCall<GenerateImagesRequest>(
 
       const docRef = await generationsRef.add({
         uploadId,
-        originalImageUrl: originalDownloadUrl,
-        generatedUrls: generatedImages,
+        originalFilePath: originalFilePath,
+        generatedPaths: generatedImages,
         prompt: finalPrompt,
         count: generatedImages.length,
         createdAt: new Date(),
